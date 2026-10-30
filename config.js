@@ -3,5 +3,7 @@ window.ASK_CONFIG = {
   WORKER_URL: "https://ask-show.spiritboyaway.workers.dev/",
   // 逐字稿資料：直接沿用搜尋站的 data.json（每週自動更新，這裡不用另外處理）
   DATA_URL: "https://spiritboyaway.github.io/podcast-search/data.json",
-  SEARCH_URL: "https://spiritboyaway.github.io/podcast-search/"
+  SEARCH_URL: "https://spiritboyaway.github.io/podcast-search/",
+  // 匿名統計聽眾問題：填和搜尋站一樣的 GoatCounter 代號（例如 "spiritboyaway"），空白＝不統計
+  GOATCOUNTER: ""
 };

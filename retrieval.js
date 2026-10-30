@@ -59,14 +59,20 @@
     this.chunks = [];   // {e: 第幾集(索引), s: 開始秒數, i: 該集第幾段, text, low}
     this.epChunks = []; // 每集的段落索引
     this.epTitleLow = [];
+    this.epSumLow = [];   // 每集摘要（step5 用 AI 產生，可能沒有）
     var totalLen = 0;
     for (var e = 0; e < this.episodes.length; e++) {
       var ep = this.episodes[e];
       var t = ep.t || [], x = ep.x || [];
       var list = [], buf = "", start = 0;
+      // 說話者（step6 辨識）：sr＝[從第幾段開始, 第幾位]；換人說話時在文字前加【名字】
+      var sp = ep.sp || [], sr = ep.sr || [], r = 0, who = -1, lastWho = -2;
       for (var j = 0; j < x.length; j++) {
-        if (!buf) start = t[j] || 0;
-        buf += (buf ? " " : "") + x[j];
+        if (!buf) { start = t[j] || 0; lastWho = -2; }
+        while (r < sr.length && sr[r][0] <= j) { who = sr[r][1]; r++; }
+        var tag = "";
+        if (sp.length && who !== lastWho) { tag = who >= 0 ? "【" + sp[who] + "】" : "【？】"; lastWho = who; }
+        buf += (buf ? " " : "") + tag + x[j];
         if (buf.length >= CHUNK_CHARS || j === x.length - 1) {
           var c = { e: e, s: start, i: list.length, text: buf, low: norm(buf) };
           list.push(this.chunks.length);
@@ -77,6 +83,8 @@
       }
       this.epChunks.push(list);
       this.epTitleLow.push(norm(ep.title));
+      var sm = ep.sum;
+      this.epSumLow.push(sm ? norm([sm.oneline, sm.summary, (sm.topics || []).join(" "), (sm.guests || []).join(" ")].join(" ")) : "");
     }
     this.avgLen = this.chunks.length ? totalLen / this.chunks.length : 1;
   }
@@ -162,6 +170,7 @@
       if (term.length >= 2) {
         for (var e = 0; e < self.episodes.length; e++) {
           if (self.epTitleLow[e].indexOf(term) !== -1) titleBoost[e] += w * idf * 0.6;
+          else if (self.epSumLow[e].indexOf(term) !== -1) titleBoost[e] += w * idf * 0.35;
         }
       }
     });
@@ -178,8 +187,18 @@
 
     // 指定集數：平均挑幾段，讓 AI 掌握整集大概
     pinned.forEach(function (e) {
-      var list = self.epChunks[e], want = Math.min(8, list.length);
-      for (var i = 0; i < want; i++) take(list[Math.floor((i + 0.5) * list.length / want)], "pinned");
+      var list = self.epChunks[e], chs = (self.episodes[e].sum && self.episodes[e].sum.chapters) || [];
+      if (chs.length) {
+        // 有章節：每個章節開頭各取一段
+        chs.slice(0, 8).forEach(function (c) {
+          var best = list[0];
+          for (var k = 0; k < list.length; k++) if (self.chunks[list[k]].s <= c.start + 5) best = list[k];
+          take(best, "pinned");
+        });
+      } else {
+        var want = Math.min(8, list.length);
+        for (var i = 0; i < want; i++) take(list[Math.floor((i + 0.5) * list.length / want)], "pinned");
+      }
     });
 
     // 一般相關度排序（同集標題相符時加分）
@@ -215,10 +234,41 @@
         id: ep.id, title: ep.title, date: ep.date, audio: ep.audio, link: ep.link, approx: ep.approx
       });
     });
-    // 新的集數排前面
-    sources.sort(function (a, b2) { return (b2.date || "").localeCompare(a.date || "") || a.start - b2.start; });
+    // 集數摘要：指定的集數＋最相關的 3 集（有摘要才加）
+    var epScore = {};
+    order.forEach(function (o) { var e = self.chunks[o[0]].e; epScore[e] = Math.max(epScore[e] || 0, o[1]); });
+    var sumEps = pinned.slice();
+    Object.keys(epScore).sort(function (a, b2) { return epScore[b2] - epScore[a]; }).forEach(function (e) {
+      e = +e; if (sumEps.length < pinned.length + 3 && sumEps.indexOf(e) === -1) sumEps.push(e);
+    });
+    sumEps.forEach(function (e) {
+      var ep = self.episodes[e], sm = ep.sum;
+      if (!sm || !sm.summary) return;
+      var chs = (sm.chapters || []).map(function (c) { return fmtTime(c.start) + " " + c.title; }).join("；");
+      sources.push({
+        e: e, start: 0, kind: "summary",
+        text: "（集數摘要）" + sm.summary + (chs ? "　章節：" + chs : "") + ((sm.guests || []).length ? "　來賓：" + sm.guests.join("、") : ""),
+        id: ep.id, title: ep.title, date: ep.date, audio: ep.audio, link: ep.link, approx: ep.approx
+      });
+    });
+    // 新的集數排前面；同一集摘要在前
+    sources.sort(function (a, b2) {
+      return (b2.date || "").localeCompare(a.date || "") || (a.kind ? -1 : 0) - (b2.kind ? -1 : 0) || a.start - b2.start;
+    });
     sources.forEach(function (s, i) { s.n = i + 1; s.time = fmtTime(s.start); delete s.lastI; });
     return { sources: sources, terms: termList, pinned: pinned };
+  };
+
+  /* 問「哪一集適合…」「推薦哪幾集」這類問題時，附上每集一句話的總覽 */
+  var CATALOG_RE = /哪(一|幾)?集|哪些集|推薦.*集|集.*推薦|適合|第一次聽|入門|新手|新聽眾|從哪|必聽|最好聽|代表作|集數/;
+  Retriever.prototype.catalog = function (question) {
+    if (!CATALOG_RE.test(question)) return "";
+    var lines = [];
+    this.episodes.forEach(function (ep) {
+      if (ep.sum && ep.sum.oneline) lines.push(ep.title.slice(0, 40) + "（" + (ep.date || "") + "）：" + ep.sum.oneline);
+    });
+    var out = lines.join("\n");
+    return out.length > 15500 ? out.slice(0, 15500) : out;
   };
 
   Retriever.fmtTime = fmtTime;

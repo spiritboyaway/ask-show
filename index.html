@@ -130,7 +130,7 @@ body.playing #thread{padding-bottom:300px}
       </div>
       <a class="hbtn search-link" id="search-link" href="#" target="_blank" rel="noopener">逐字稿搜尋站 ↗</a>
     </div>
-    <div class="notice">🤖 這是 AI 模仿主持人口吻、根據節目逐字稿自動產生的回答，<b>不是二百五或鳳梨本人說的</b>，可能有錯，請以節目原音為準（點時間就能聽）。你的問題會送到 Google Gemini 處理，請不要輸入個人資料。</div>
+    <div class="notice">🤖 這是 AI 模仿主持人口吻、根據節目逐字稿自動產生的回答，<b>不是二百五或鳳梨本人說的</b>，可能有錯，請以節目原音為準（點時間就能聽）。你的問題會送到 Google Gemini 處理，並匿名統計熱門問題，請不要輸入個人資料。</div>
   </header>
 
   <main id="thread" aria-live="polite">
@@ -184,6 +184,20 @@ body.playing #thread{padding-bottom:300px}
 
   $("search-link").href = CFG.SEARCH_URL || "#";
 
+  /* 匿名統計聽眾問了什麼（GoatCounter，和搜尋站共用；不記瀏覽人次、不記是誰問的）。config.js 的 GOATCOUNTER 空白就不統計 */
+  if (CFG.GOATCOUNTER) {
+    var gc = document.createElement("script");
+    gc.async = true; gc.src = "https://gc.zgo.at/count.js";
+    gc.dataset.goatcounter = "https://" + CFG.GOATCOUNTER + ".goatcounter.com/count";
+    gc.dataset.goatcounterSettings = JSON.stringify({ no_onload: true });
+    document.head.appendChild(gc);
+  }
+  function track(question, found) {
+    if (!CFG.GOATCOUNTER || !window.goatcounter || !window.goatcounter.count) return;
+    var t = question.replace(/\s+/g, " ").trim().slice(0, 80);
+    try { window.goatcounter.count({ path: (found ? "問問節目/" : "問問節目（沒找到）/") + t, title: t, event: true }); } catch (e) {}
+  }
+
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -204,32 +218,63 @@ body.playing #thread{padding-bottom:300px}
   renderChips();
 
   /* ---------- 載入逐字稿 ---------- */
-  function loadData() {
-    var local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-    var urls = local ? ["local_data.json", CFG.DATA_URL] : [CFG.DATA_URL];
+  /* 和搜尋站共用同一份瀏覽器快取：在搜尋站看過的聽眾，這裡就不用再下載一次 */
+  var CACHE = "podcast-search-data";
+  function download(url, total) {
     var status = $("load-status");
-    function tryNext(i) {
-      if (i >= urls.length) return Promise.reject(new Error("load"));
-      return fetch(urls[i]).then(function (r) {
-        if (!r.ok) throw new Error(r.status);
-        if (!r.body || !r.body.getReader) return r.json();
-        var reader = r.body.getReader(), parts = [], got = 0;
-        function pump() {
-          return reader.read().then(function (res) {
-            if (res.done) return;
-            parts.push(res.value); got += res.value.length;
-            status.textContent = "正在載入節目逐字稿… " + (got / 1048576).toFixed(1) + " MB";
-            return pump();
-          });
-        }
-        return pump().then(function () {
-          var all = new Uint8Array(got), off = 0;
-          parts.forEach(function (p) { all.set(p, off); off += p.length; });
-          return JSON.parse(new TextDecoder("utf-8").decode(all));
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      if (!r.body || !r.body.getReader) return r.text();
+      var reader = r.body.getReader(), parts = [], got = 0;
+      function pump() {
+        return reader.read().then(function (res) {
+          if (res.done) return;
+          parts.push(res.value); got += res.value.length;
+          status.textContent = "正在載入節目逐字稿… " + (total ? Math.min(100, Math.round(got / total * 100)) + "%（" : "") +
+            (got / 1048576).toFixed(1) + (total ? " / " + (total / 1048576).toFixed(1) : "") + " MB" + (total ? "）・下次打開就不用再等了" : "");
+          return pump();
         });
-      }).catch(function () { return tryNext(i + 1); });
-    }
-    tryNext(0).then(function (data) {
+      }
+      return pump().then(function () {
+        var all = new Uint8Array(got), off = 0;
+        parts.forEach(function (p) { all.set(p, off); off += p.length; });
+        return new TextDecoder("utf-8").decode(all);
+      });
+    });
+  }
+  function loadFromSite() {
+    var base = CFG.DATA_URL.replace(/data\.json.*$/, "");
+    var ver = null, cache = null, key = "";
+    return fetch(base + "data-version.json", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      .then(function (v) {
+        ver = v;
+        key = new URL(CFG.DATA_URL + "?v=" + (ver ? ver.v : "nov"), location.href).href;
+        return window.caches ? caches.open(CACHE).catch(function () { return null; }) : null;
+      })
+      .then(function (c) {
+        cache = c;
+        return cache && ver ? cache.match(key).catch(function () { return null; }) : null;
+      })
+      .then(function (hit) {
+        if (hit) return hit.text();
+        return download(key, ver ? ver.bytes : 0).then(function (text) {
+          if (cache && ver) {
+            cache.put(key, new Response(text, { headers: { "Content-Type": "application/json" } }))
+              .then(function () { return cache.keys(); })
+              .then(function (keys) { keys.forEach(function (k) { if (k.url !== key) cache.delete(k); }); })
+              .catch(function () {});
+          }
+          return text;
+        });
+      })
+      .then(function (text) { return JSON.parse(text); });
+  }
+  function loadData() {
+    var status = $("load-status");
+    var local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    var p = local ? download("local_data.json", 0).then(JSON.parse).catch(loadFromSite) : loadFromSite();
+    p.then(function (data) {
       retriever = new PodcastRetriever(data);
       var show = data.show || {};
       if (show.image) { var c = $("cover"); c.src = show.image; c.hidden = false; }
@@ -266,7 +311,7 @@ body.playing #thread{padding-bottom:300px}
         if (!src) return "";
         var label = (src.title.match(/^(EP\.?\s*[\d-]+|【[^】]+】|[^：:｜|]{1,8})/) || [src.title.slice(0, 6)])[0];
         return '<button type="button" class="cite" data-n="' + n + '" title="' + esc(src.title + "・" + src.time) + '">' +
-          esc(label.replace(/\s+/g, "")) + " " + src.time + "</button>";
+          esc(label.replace(/\s+/g, "")) + " " + (src.kind ? "整集" : src.time) + "</button>";
       });
     }
     var html = "", list = null;
@@ -289,7 +334,7 @@ body.playing #thread{padding-bottom:300px}
     if (!sources.length) return "";
     var items = sources.map(function (s) {
       return '<li data-n="' + s.n + '"><div class="s-head"><span class="s-n">' + s.n + '</span>' +
-        '<span class="s-title">' + esc(s.title) + "<small>" + esc(s.date || "") + (s.approx ? "・時間為估計值" : "") + "</small></span>" +
+        '<span class="s-title">' + esc(s.title) + "<small>" + esc(s.date || "") + (s.kind ? "・集數摘要（AI 整理）" : "") + (s.approx ? "・時間為估計值" : "") + "</small></span>" +
         '<button type="button" class="play" data-n="' + s.n + '">▶ ' + s.time + "</button></div>" +
         '<div class="s-text">' + esc(s.text) + "</div></li>";
     }).join("");
@@ -320,6 +365,7 @@ body.playing #thread{padding-bottom:300px}
     var followUp = prevUser && (question.length < 14 || /^(那|它|他|這部|這個|那部|那個|所以|還有)/.test(question));
     var found = retriever.search(question, followUp ? prevUser : "");
     var sources = found.sources;
+    track(question, sources.length > 0);
 
     var cover = $("cover").hidden ? "" : '<img src="' + esc($("cover").src) + '" alt="" onerror="this.remove()">';
     var bot = addMsg("bot", '<div class="who">' + cover + "神隱少年團 AI（模仿口吻）</div>" +
@@ -350,7 +396,8 @@ body.playing #thread{padding-bottom:300px}
     var payload = {
       question: question,
       history: history.slice(-6),
-      sources: sources.map(function (s) { return { n: s.n, title: s.title, date: s.date, time: s.time, text: s.text.slice(0, 1800) }; })
+      sources: sources.map(function (s) { return { n: s.n, title: s.title, date: s.date, time: s.kind ? "整集" : s.time, text: s.text.slice(0, 1800) }; }),
+      catalog: retriever.catalog(question)
     };
     var ctrl = window.AbortController ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 90000); // 90 秒沒回應就放棄
