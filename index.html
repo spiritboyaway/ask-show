@@ -149,6 +149,8 @@ body.playing #thread{padding-bottom:300px}
 .host-card .av{width:60px;height:60px}
 .host-card .info{flex:1;min-width:0}
 .host-card b{font-size:17px;font-weight:900}
+.host-card .fav{display:inline-block;margin-top:2px;font-size:13.5px;font-weight:900;padding:0 4px;
+  background:linear-gradient(transparent 45%,var(--hl) 45%,var(--hl) 92%,transparent 92%)}
 .host-card small{display:block;color:var(--muted);font-size:12.5px;font-weight:500;line-height:1.5}
 .host-card .qs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .host-card .qs .chip{font-size:13px;padding:2px 9px;border-width:1.5px}
@@ -203,13 +205,13 @@ body.playing #thread{padding-bottom:300px}
       <div class="host-cards" id="host-cards">
         <div class="host-card">
           <img class="av" src="img/host-250.webp" alt="二百五" width="60" height="60">
-          <div class="info"><b>二百五</b><small>主持人</small>
-            <div class="qs"><button type="button" class="chip" data-q="二百五最喜歡的作品是什麼？">最喜歡的作品？</button><button type="button" class="chip" data-q="二百五推薦過哪些冷門作品？">推薦的冷門作品？</button></div></div>
+          <div class="info"><b>二百五</b><small>主持人</small><span class="fav">最愛：《三月的獅子》</span>
+            <div class="qs"><button type="button" class="chip" data-q="二百五為什麼最喜歡《三月的獅子》？">為什麼最愛三月？</button><button type="button" class="chip" data-q="二百五推薦過哪些冷門作品？">推薦的冷門作品？</button></div></div>
         </div>
         <div class="host-card">
           <img class="av" src="img/host-pineapple.webp" alt="鳳梨索" width="60" height="60">
-          <div class="info"><b>鳳梨索</b><small>主持人（節目裡常叫鳳梨）</small>
-            <div class="qs"><button type="button" class="chip" data-q="鳳梨最喜歡的角色是誰？">最喜歡的角色？</button><button type="button" class="chip" data-q="鳳梨推薦過什麼作品？">推薦過什麼？</button></div></div>
+          <div class="info"><b>鳳梨索</b><small>主持人（節目裡常叫鳳梨）</small><span class="fav">最愛：《物語系列》</span>
+            <div class="qs"><button type="button" class="chip" data-q="鳳梨為什麼最喜歡《物語系列》？">為什麼最愛物語？</button><button type="button" class="chip" data-q="鳳梨推薦過什麼作品？">推薦過什麼？</button></div></div>
         </div>
       </div>
       <h2>今天想問什麼？</h2>
