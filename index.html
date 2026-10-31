@@ -169,6 +169,28 @@ body.playing #thread{padding-bottom:300px}
   .bot .bubble{padding:12px 14px;font-size:15.5px;box-shadow:3px 3px 0 #1b1a18}
 }
 
+/* ---------- 分享 ---------- */
+.share-bar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.share-btn{display:inline-flex;align-items:center;gap:6px;border:2px solid #1b1a18;background:var(--hl);color:#1b1a18;border-radius:999px;
+  padding:3px 14px;font-size:13.5px;font-weight:900;cursor:pointer;font-family:inherit;box-shadow:2px 2px 0 #1b1a18}
+.share-btn:active{transform:translate(2px,2px);box-shadow:none}
+.shared-tag{display:inline-block;margin:18px 0 0;font-size:13px;font-weight:700;background:var(--paper);border:2px solid #1b1a18;border-radius:999px;padding:2px 12px}
+.sheet{position:fixed;inset:0;z-index:30;background:rgba(27,26,24,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.sheet-box{background:var(--page);border:3px solid #1b1a18;border-radius:16px;box-shadow:6px 6px 0 #1b1a18;width:min(520px,100%);max-height:92vh;
+  display:flex;flex-direction:column;overflow:hidden}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-weight:900;border-bottom:2px solid #1b1a18;background:var(--paper)}
+.sheet-head button{border:0;background:none;font-size:24px;cursor:pointer;line-height:1;color:#1b1a18}
+.sheet-img{flex:1;min-height:0;overflow:auto;padding:14px;text-align:center}
+.sheet-img img{max-width:100%;border:2px solid #1b1a18;border-radius:8px;background:#fff}
+.sheet-img .status{padding:40px 0}
+.sheet-acts{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:12px 16px 16px;border-top:2px solid #1b1a18;background:var(--paper)}
+.sheet-acts button,.sheet-acts a{display:flex;align-items:center;justify-content:center;gap:6px;border:2px solid #1b1a18;background:#fff;color:#1b1a18;
+  border-radius:10px;padding:8px 10px;font-size:14px;font-weight:900;cursor:pointer;text-decoration:none;font-family:inherit;box-shadow:2px 2px 0 #1b1a18}
+.sheet-acts .main{grid-column:1/-1;background:var(--amber)}
+.toast{position:fixed;left:50%;bottom:140px;transform:translateX(-50%);background:#1b1a18;color:#fff;padding:8px 16px;border-radius:999px;
+  font-size:14px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none;z-index:40}
+.toast.show{opacity:1}
+
 /* ---------- 動態背景：緩慢飄動的漫畫網點（跟關鍵字搜尋站一樣） ---------- */
 .bg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
 .bg .tone{position:absolute;inset:-60px;
@@ -246,8 +268,24 @@ body.playing #thread{padding-bottom:300px}
   </div>
 </div>
 
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="分享這個回答">
+  <div class="sheet-box">
+    <div class="sheet-head"><span>分享這個回答</span><button type="button" id="sheet-close" aria-label="關閉">×</button></div>
+    <div class="sheet-img" id="sheet-img"></div>
+    <div class="sheet-acts">
+      <button type="button" class="main" id="act-image">分享圖片</button>
+      <button type="button" id="act-copy">複製連結</button>
+      <a id="act-threads" target="_blank" rel="noopener">Threads</a>
+      <a id="act-fb" target="_blank" rel="noopener">Facebook</a>
+      <a id="act-line" target="_blank" rel="noopener">LINE</a>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
 <script src="config.js"></script>
 <script src="retrieval.js"></script>
+<script src="share.js"></script>
 <script>
 (function () {
   "use strict";
@@ -374,6 +412,7 @@ body.playing #thread{padding-bottom:300px}
       status.textContent = "已讀完 " + data.episodes.length + " 集逐字稿（更新到 " + (data.built || "") + "）。可以點下面的問題，或自己打字問：";
       send.disabled = !q.value.trim();
       if (!CFG.WORKER_URL) status.innerHTML += '<br><span class="err">⚠ 網站還沒設定 AI 中繼服務（config.js 的 WORKER_URL），目前只能看到找到的逐字稿片段。</span>';
+      openSharedLink();
     }).catch(function () {
       status.innerHTML = '<span class="err">逐字稿載入失敗，請重新整理頁面再試一次。</span>';
     });
@@ -390,7 +429,8 @@ body.playing #thread{padding-bottom:300px}
   $("reset").onclick = function () {
     if (busy) return;
     history = [];
-    Array.prototype.slice.call(thread.querySelectorAll(".msg")).forEach(function (n) { n.remove(); });
+    Array.prototype.slice.call(thread.querySelectorAll(".msg, .shared-tag")).forEach(function (n) { n.remove(); });
+    if (location.hash || location.search) window.history.replaceState(null, "", location.pathname);
     $("welcome").hidden = false; $("reset").hidden = true; renderChips(); q.focus();
   };
 
@@ -470,6 +510,8 @@ body.playing #thread{padding-bottom:300px}
     function finish(text) {
       bubble.innerHTML = renderAnswer(text, sources) || '<p class="status">（沒有回答）</p>';
       bot.insertAdjacentHTML("beforeend", sourcesHtml(sources));
+      bot._q = question; bot._a = text;
+      bot.insertAdjacentHTML("beforeend", '<div class="share-bar"><button type="button" class="share-btn">↗ 分享這個回答</button></div>');
       history.push({ role: "user", text: question });
       history.push({ role: "model", text: text.replace(/\[\d{1,2}\]/g, "") });
       if (history.length > 8) history = history.slice(-8);
@@ -532,6 +574,104 @@ body.playing #thread{padding-bottom:300px}
       });
   }
 
+  /* ---------- 分享 ---------- */
+  var toastTimer;
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove("show"); }, 1800);
+  }
+  function citedNumbers(text) {
+    var out = [], m, re = /\[(\d{1,2})\]/g;
+    while ((m = re.exec(text))) { var n = +m[1]; if (out.indexOf(n) === -1) out.push(n); }
+    return out;
+  }
+  var sheetUrl = "", imgUrl = "";
+  function openShare(msg) {
+    if (!msg || !msg._a || !window.AskShare) return;
+    var sources = msg._sources || [], question = msg._q, answer = msg._a;
+    var cited = citedNumbers(answer);
+    var keep = sources.filter(function (s) { return cited.indexOf(s.n) !== -1; });
+    var payload = { q: question, a: answer, s: keep.map(function (s) { return [s.id, s.start, s.kind ? 1 : 0, s.n]; }) };
+    $("sheet").hidden = false;
+    $("sheet-img").innerHTML = '<p class="status">圖卡製作中…</p>';
+    var text = "我問了神隱少年團的 AI：「" + question + "」";
+    AskShare.makeLink(payload).then(function (url) {
+      sheetUrl = url;
+      $("act-threads").href = "https://www.threads.net/intent/post?text=" + encodeURIComponent(text + "\n" + url);
+      $("act-fb").href = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(url);
+      $("act-line").href = "https://social-plugins.line.me/lineit/share?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(text);
+    });
+    AskShare.makeImage({ q: question, a: answer, sources: sources, cited: cited }).then(function (blob) {
+      if (imgUrl) URL.revokeObjectURL(imgUrl);
+      imgUrl = URL.createObjectURL(blob);
+      $("sheet-img").innerHTML = '<img alt="分享圖卡" src="' + imgUrl + '">';
+      var file = new File([blob], "神隱少年團問問節目.png", { type: "image/png" });
+      var canFile = navigator.canShare && navigator.canShare({ files: [file] });
+      $("act-image").textContent = canFile ? "分享圖片（IG、Threads、LINE…）" : "下載圖片";
+      $("act-image").onclick = function () {
+        if (canFile) {
+          navigator.share({ files: [file], text: text + " " + sheetUrl }).catch(function () {});
+        } else {
+          var a = document.createElement("a"); a.href = imgUrl; a.download = "神隱少年團問問節目.png";
+          document.body.appendChild(a); a.click(); a.remove();
+          toast("圖片已下載");
+        }
+      };
+    }).catch(function () { $("sheet-img").innerHTML = '<p class="status">圖卡做不出來，可以改用複製連結。</p>'; });
+  }
+  $("sheet-close").onclick = function () { $("sheet").hidden = true; };
+  $("sheet").addEventListener("click", function (e) { if (e.target === this) this.hidden = true; });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") $("sheet").hidden = true; });
+  $("act-copy").onclick = function () {
+    if (!sheetUrl) return;
+    var done = function () { toast("已複製連結，可以貼到社群了"); };
+    if (navigator.clipboard) navigator.clipboard.writeText(sheetUrl).then(done, function () { prompt("複製這個連結：", sheetUrl); });
+    else prompt("複製這個連結：", sheetUrl);
+  };
+
+  /* 別人分享的連結：直接顯示當時的回答（不用再問 AI）；?q= 則自動發問 */
+  function restoreSources(list) {
+    var out = [];
+    (list || []).forEach(function (r) {
+      var id = r[0], start = r[1], kind = r[2], n = r[3];
+      var e = -1;
+      for (var i = 0; i < retriever.episodes.length; i++) if (retriever.episodes[i].id === id) { e = i; break; }
+      if (e < 0) return;
+      var ep = retriever.episodes[e], text = "";
+      if (kind) {
+        var sm = ep.sum || {};
+        text = "（集數摘要）" + (sm.summary || ep.title);
+      } else {
+        var cs = retriever.epChunks[e] || [];
+        for (var k = 0; k < cs.length; k++) {
+          var ch = retriever.chunks[cs[k]];
+          if (ch.s === start) { text = ch.text; break; }
+          if (ch.s > start) { text = retriever.chunks[cs[Math.max(0, k - 1)]].text; break; }
+        }
+      }
+      out.push({ n: n, e: e, start: start, kind: kind ? "summary" : undefined, text: text, time: PodcastRetriever.fmtTime(start),
+        id: ep.id, title: ep.title, date: ep.date, audio: ep.audio, link: ep.link, approx: ep.approx });
+    });
+    return out;
+  }
+  function openSharedLink() {
+    var qs = new URLSearchParams(location.search).get("q");
+    if (qs) { ask(qs.slice(0, 300)); return; }
+    if (!window.AskShare) return;
+    AskShare.readLink().then(function (d) {
+      if (!d || !d.q || !d.a) return;
+      var sources = restoreSources(d.s);
+      $("welcome").hidden = true;
+      thread.insertAdjacentHTML("beforeend", '<span class="shared-tag">📮 這是別人分享的回答，你也可以在下面繼續問</span>');
+      addMsg("user", '<div class="bubble">' + esc(d.q) + "</div>");
+      var bot = addMsg("bot", '<div class="who"><span class="mini-logo" aria-hidden="true">隱</span>神隱少年團 AI（模仿口吻）</div>' +
+        '<div class="bubble">' + renderAnswer(d.a, sources) + "</div>" + sourcesHtml(sources) +
+        '<div class="share-bar"><button type="button" class="share-btn">↗ 分享這個回答</button></div>');
+      bot._sources = sources; bot._q = d.q; bot._a = d.a;
+      $("reset").hidden = false;
+    });
+  }
+
   /* ---------- 播放 ---------- */
   var audio = $("audio"), player = $("player"), current = "";
   function play(src) {
@@ -548,6 +688,8 @@ body.playing #thread{padding-bottom:300px}
   $("p-close").onclick = function () { audio.pause(); player.classList.remove("show"); document.body.classList.remove("playing"); };
 
   thread.addEventListener("click", function (e) {
+    var sb = e.target.closest(".share-btn");
+    if (sb) { openShare(sb.closest(".msg")); return; }
     var t = e.target.closest(".cite, .play, .s-text");
     if (!t) return;
     if (t.classList.contains("s-text")) { t.classList.toggle("full"); return; }
