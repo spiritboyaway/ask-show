@@ -150,8 +150,6 @@ body.playing #thread{padding-bottom:300px}
 .host-card .info{flex:1;min-width:0}
 .host-card b{font-size:17px;font-weight:900}
 .host-card small{display:block;color:var(--muted);font-size:12.5px;font-weight:500;line-height:1.5}
-.host-card .stat{font-family:"Bebas Neue","Noto Sans TC",sans-serif;font-size:22px;letter-spacing:.02em;line-height:1.2;display:block;margin-top:2px}
-.host-card .stat em{font-style:normal;font-family:"Noto Sans TC",sans-serif;font-size:12px;font-weight:700;color:var(--muted);margin-left:3px}
 .host-card .qs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .host-card .qs .chip{font-size:13px;padding:2px 9px;border-width:1.5px}
 .spk{display:inline-flex;align-items:center;gap:4px;font-weight:900;color:#1b1a18;font-size:12.5px;margin-right:3px;white-space:nowrap;vertical-align:-1px}
@@ -205,12 +203,12 @@ body.playing #thread{padding-bottom:300px}
       <div class="host-cards" id="host-cards">
         <div class="host-card">
           <img class="av" src="img/host-250.webp" alt="二百五" width="60" height="60">
-          <div class="info"><b>二百五</b><small>主持人</small><span class="stat" id="talk-250" hidden></span>
+          <div class="info"><b>二百五</b><small>主持人</small>
             <div class="qs"><button type="button" class="chip" data-q="二百五最喜歡的作品是什麼？">最喜歡的作品？</button><button type="button" class="chip" data-q="二百五推薦過哪些冷門作品？">推薦的冷門作品？</button></div></div>
         </div>
         <div class="host-card">
           <img class="av" src="img/host-pineapple.webp" alt="鳳梨索" width="60" height="60">
-          <div class="info"><b>鳳梨索</b><small>主持人（節目裡常叫鳳梨）</small><span class="stat" id="talk-pineapple" hidden></span>
+          <div class="info"><b>鳳梨索</b><small>主持人（節目裡常叫鳳梨）</small>
             <div class="qs"><button type="button" class="chip" data-q="鳳梨最喜歡的角色是誰？">最喜歡的角色？</button><button type="button" class="chip" data-q="鳳梨推薦過什麼作品？">推薦過什麼？</button></div></div>
         </div>
       </div>
@@ -309,27 +307,6 @@ body.playing #thread{padding-bottom:300px}
     });
   }
 
-  /* 兩位主持人在節目裡各講了多久（說話者辨識的資料） */
-  function showTalkStats(data) {
-    var sec = {};
-    (data.episodes || []).forEach(function (ep) {
-      if (!ep.sp || !ep.sr) return;
-      var t = ep.t || [], r = 0, who = -1;
-      for (var j = 0; j < t.length; j++) {
-        while (r < ep.sr.length && ep.sr[r][0] <= j) { who = ep.sr[r][1]; r++; }
-        if (who < 0) continue;
-        var d = j + 1 < t.length ? Math.min(Math.max(t[j + 1] - t[j], 0), 60) : 5;
-        var name = ep.sp[who];
-        sec[name] = (sec[name] || 0) + d;
-      }
-    });
-    [["二百五", "talk-250"], ["鳳梨", "talk-pineapple"]].forEach(function (p) {
-      if (!sec[p[0]]) return;
-      var el = $(p[1]);
-      el.innerHTML = Math.round(sec[p[0]] / 3600) + "<em>小時節目裡在講話</em>";
-      el.hidden = false;
-    });
-  }
 
   /* ---------- 載入逐字稿 ---------- */
   /* 和搜尋站共用同一份瀏覽器快取：在搜尋站看過的聽眾，這裡就不用再下載一次 */
@@ -390,7 +367,6 @@ body.playing #thread{padding-bottom:300px}
     var p = local ? download("local_data.json", 0).then(JSON.parse).catch(loadFromSite) : loadFromSite();
     p.then(function (data) {
       retriever = new PodcastRetriever(data);
-      showTalkStats(data);
       var show = data.show || {};
       if (show.image) { var c = $("cover"); c.src = show.image; c.hidden = false; }
       status.textContent = "已讀完 " + data.episodes.length + " 集逐字稿（更新到 " + (data.built || "") + "）。可以點下面的問題，或自己打字問：";
