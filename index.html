@@ -137,6 +137,29 @@ details.src[open] summary::before{transform:rotate(90deg)}
 audio{width:100%;height:40px}
 body.playing .composer{bottom:100px}
 body.playing #thread{padding-bottom:300px}
+/* ---------- 主持人頭像 ---------- */
+.av{flex:none;display:inline-block;border-radius:50%;object-fit:cover;background:#fff;border:2px solid #1b1a18;vertical-align:middle}
+.hosts{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:13px;font-weight:700;color:var(--muted)}
+.hosts .pair{display:flex}
+.hosts .pair .av{width:40px;height:40px}
+.hosts .pair .av + .av{margin-left:-10px}
+.host-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 18px}
+.host-card{background:var(--paper);color:#1b1a18;border:2px solid #1b1a18;border-radius:12px;padding:12px 14px;box-shadow:3px 3px 0 #1b1a18;
+  display:flex;gap:12px;align-items:flex-start}
+.host-card .av{width:60px;height:60px}
+.host-card .info{flex:1;min-width:0}
+.host-card b{font-size:17px;font-weight:900}
+.host-card small{display:block;color:var(--muted);font-size:12.5px;font-weight:500;line-height:1.5}
+.host-card .stat{font-family:"Bebas Neue","Noto Sans TC",sans-serif;font-size:22px;letter-spacing:.02em;line-height:1.2;display:block;margin-top:2px}
+.host-card .stat em{font-style:normal;font-family:"Noto Sans TC",sans-serif;font-size:12px;font-weight:700;color:var(--muted);margin-left:3px}
+.host-card .qs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.host-card .qs .chip{font-size:13px;padding:2px 9px;border-width:1.5px}
+.spk{display:inline-flex;align-items:center;gap:4px;font-weight:900;color:#1b1a18;font-size:12.5px;margin-right:3px;white-space:nowrap;vertical-align:-1px}
+.spk .av{width:20px;height:20px;border-width:1.5px}
+.spk .dot{width:20px;height:20px;border-radius:50%;border:1.5px solid #1b1a18;display:inline-grid;place-items:center;font-size:11px;background:#e6dfd2;line-height:1}
+@media (max-width:560px){
+  .host-cards{grid-template-columns:1fr}
+}
 @media (max-width:560px){
   header{padding-top:22px}
   .brand{gap:12px}
@@ -145,9 +168,19 @@ body.playing #thread{padding-bottom:300px}
   .welcome h2{font-size:21px}
   .bot .bubble{padding:12px 14px;font-size:15.5px;box-shadow:3px 3px 0 #1b1a18}
 }
+
+/* ---------- 動態背景：緩慢飄動的漫畫網點（跟關鍵字搜尋站一樣） ---------- */
+.bg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.bg .tone{position:absolute;inset:-60px;
+  background-image:radial-gradient(rgba(27,26,24,.075) 1.6px,transparent 1.8px);background-size:22px 22px;
+  animation:tone 28s linear infinite;will-change:transform}
+@keyframes tone{to{transform:translate(22px,22px)}}
+@media (max-width:760px){ .bg .tone{opacity:.8} }
+@media (prefers-reduced-motion: reduce){ .bg .tone{animation:none} }
 </style>
 </head>
 <body>
+<div class="bg" aria-hidden="true"><div class="tone"></div></div>
 <div class="wrap">
   <header>
     <div class="brand">
@@ -160,11 +193,27 @@ body.playing #thread{padding-bottom:300px}
       <a class="hbtn search-link" id="search-link" href="#" target="_blank" rel="noopener">關鍵字搜尋 ↗</a>
     </div>
     <span class="tagline">想知道我們聊過什麼？直接問，附上集數和時間點</span>
+    <div class="hosts">
+      <span class="pair"><img class="av" src="img/host-250.webp" alt="二百五" width="40" height="40"><img class="av" src="img/host-pineapple.webp" alt="鳳梨索" width="40" height="40"></span>
+      <span>主持：二百五、鳳梨索</span>
+    </div>
     <div class="notice">🤖 這是 AI 模仿主持人口吻、根據節目逐字稿自動產生的回答，<b>不是二百五或鳳梨本人說的</b>，可能有錯，請以節目原音為準（點時間就能聽）。你的問題會送到 Google Gemini 處理，並匿名統計熱門問題，請不要輸入個人資料。</div>
   </header>
 
   <main id="thread" aria-live="polite">
     <section class="welcome" id="welcome">
+      <div class="host-cards" id="host-cards">
+        <div class="host-card">
+          <img class="av" src="img/host-250.webp" alt="二百五" width="60" height="60">
+          <div class="info"><b>二百五</b><small>主持人</small><span class="stat" id="talk-250" hidden></span>
+            <div class="qs"><button type="button" class="chip" data-q="二百五最喜歡的作品是什麼？">最喜歡的作品？</button><button type="button" class="chip" data-q="二百五推薦過哪些冷門作品？">推薦的冷門作品？</button></div></div>
+        </div>
+        <div class="host-card">
+          <img class="av" src="img/host-pineapple.webp" alt="鳳梨索" width="60" height="60">
+          <div class="info"><b>鳳梨索</b><small>主持人（節目裡常叫鳳梨）</small><span class="stat" id="talk-pineapple" hidden></span>
+            <div class="qs"><button type="button" class="chip" data-q="鳳梨最喜歡的角色是誰？">最喜歡的角色？</button><button type="button" class="chip" data-q="鳳梨推薦過什麼作品？">推薦過什麼？</button></div></div>
+        </div>
+      </div>
       <h2>今天想問什麼？</h2>
       <p id="load-status">正在載入節目逐字稿…</p>
       <div class="chips" id="chips"></div>
@@ -246,6 +295,41 @@ body.playing #thread{padding-bottom:300px}
     });
   }
   renderChips();
+  Array.prototype.forEach.call(document.querySelectorAll("#host-cards .chip"), function (b) {
+    b.onclick = function () { ask(b.dataset.q); };
+  });
+
+  /* 說話者標記【二百五】→ 頭像 */
+  var AVATAR = { "二百五": "img/host-250.webp", "鳳梨": "img/host-pineapple.webp" };
+  function speakerHtml(text) {
+    return esc(text).replace(/【([^】]{1,20})】/g, function (m, name) {
+      if (AVATAR[name]) return '<span class="spk"><img class="av" src="' + AVATAR[name] + '" alt="">' + esc(name) + "：</span>";
+      if (name === "？") return '<span class="spk"><span class="dot">?</span></span>';
+      return '<span class="spk"><span class="dot">客</span>' + esc(name) + "：</span>";
+    });
+  }
+
+  /* 兩位主持人在節目裡各講了多久（說話者辨識的資料） */
+  function showTalkStats(data) {
+    var sec = {};
+    (data.episodes || []).forEach(function (ep) {
+      if (!ep.sp || !ep.sr) return;
+      var t = ep.t || [], r = 0, who = -1;
+      for (var j = 0; j < t.length; j++) {
+        while (r < ep.sr.length && ep.sr[r][0] <= j) { who = ep.sr[r][1]; r++; }
+        if (who < 0) continue;
+        var d = j + 1 < t.length ? Math.min(Math.max(t[j + 1] - t[j], 0), 60) : 5;
+        var name = ep.sp[who];
+        sec[name] = (sec[name] || 0) + d;
+      }
+    });
+    [["二百五", "talk-250"], ["鳳梨", "talk-pineapple"]].forEach(function (p) {
+      if (!sec[p[0]]) return;
+      var el = $(p[1]);
+      el.innerHTML = Math.round(sec[p[0]] / 3600) + "<em>小時節目裡在講話</em>";
+      el.hidden = false;
+    });
+  }
 
   /* ---------- 載入逐字稿 ---------- */
   /* 和搜尋站共用同一份瀏覽器快取：在搜尋站看過的聽眾，這裡就不用再下載一次 */
@@ -306,6 +390,7 @@ body.playing #thread{padding-bottom:300px}
     var p = local ? download("local_data.json", 0).then(JSON.parse).catch(loadFromSite) : loadFromSite();
     p.then(function (data) {
       retriever = new PodcastRetriever(data);
+      showTalkStats(data);
       var show = data.show || {};
       if (show.image) { var c = $("cover"); c.src = show.image; c.hidden = false; }
       status.textContent = "已讀完 " + data.episodes.length + " 集逐字稿（更新到 " + (data.built || "") + "）。可以點下面的問題，或自己打字問：";
@@ -366,7 +451,7 @@ body.playing #thread{padding-bottom:300px}
       return '<li data-n="' + s.n + '"><div class="s-head"><span class="s-n">' + s.n + '</span>' +
         '<span class="s-title">' + esc(s.title) + "<small>" + esc(s.date || "") + (s.kind ? "・集數摘要（AI 整理）" : "") + (s.approx ? "・時間為估計值" : "") + "</small></span>" +
         '<button type="button" class="play" data-n="' + s.n + '">▶ ' + s.time + "</button></div>" +
-        '<div class="s-text">' + esc(s.text) + "</div></li>";
+        '<div class="s-text">' + speakerHtml(s.text) + "</div></li>";
     }).join("");
     return '<details class="src"><summary>參考了 ' + sources.length + " 段節目內容</summary><ul class=\"srcs\">" + items + "</ul></details>";
   }

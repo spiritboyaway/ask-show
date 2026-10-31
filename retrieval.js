@@ -175,6 +175,11 @@
       }
     });
 
+    // 問題提到某位主持人時，那個人說的段落加分（需要說話者辨識資料）
+    var hostTag = /二百五|250/.test(question) ? "【二百五】" : /鳳梨/.test(question) ? "【鳳梨】" : "";
+    if (hostTag) {
+      for (var hc = 0; hc < N; hc++) if (scores[hc] > 0 && this.chunks[hc].text.indexOf(hostTag) !== -1) scores[hc] *= 1.4;
+    }
     var pinned = this.pinnedEpisodes(question);
     var picked = [], perEp = {}, used = {};
     function take(ci, why) {
