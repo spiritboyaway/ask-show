@@ -5,5 +5,5 @@ window.ASK_CONFIG = {
   DATA_URL: "https://spiritboyaway.github.io/podcast-search/data.json",
   SEARCH_URL: "https://spiritboyaway.github.io/podcast-search/",
   // 匿名統計聽眾問題：填和搜尋站一樣的 GoatCounter 代號（例如 "spiritboyaway"），空白＝不統計
-  GOATCOUNTER: ""
+  GOATCOUNTER: "spiritboyaway"
 };
