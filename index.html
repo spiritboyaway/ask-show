@@ -59,6 +59,8 @@ header{padding:36px 0 6px}
 .welcome h2{font-size:24px;font-weight:900;margin:0 0 6px;line-height:1.4}
 .welcome p{color:var(--muted);margin:0 0 16px;font-weight:500}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
+.qa-link{display:inline-block;margin-top:18px;background:var(--hl);color:#1b1a18;text-decoration:none;font-size:14.5px;border:2px solid #1b1a18;border-radius:10px;padding:7px 14px;box-shadow:3px 3px 0 #1b1a18}
+.qa-link:hover{filter:brightness(1.04)}
 .chip{border:2px solid #1b1a18;background:var(--paper);color:#1b1a18;border-radius:8px;padding:5px 12px;font-size:14.5px;font-weight:700;
   cursor:pointer;font-family:inherit;text-align:left;line-height:1.45}
 .chip:hover{background:var(--hl)}
@@ -239,6 +241,7 @@ body.playing #thread{padding-bottom:300px}
       <h2>今天想問什麼？</h2>
       <p id="load-status">正在載入節目逐字稿…</p>
       <div class="chips" id="chips"></div>
+      <a class="qa-link" href="https://spiritboyaway.github.io/quiz/" target="_blank" rel="noopener">想考考自己？玩 <b>QA大冒險</b> 答題闖關 ↗</a>
     </section>
   </main>
 </div>
